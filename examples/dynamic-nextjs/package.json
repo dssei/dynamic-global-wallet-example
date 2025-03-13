@@ -18,8 +18,7 @@
     "@dynamic-labs/solana": "*",
     "crypto-browserify": "^3.12.0",
     "stream-browserify": "^3.0.0",
-    "process": "^0.11.10",
-    "dynamic-global-wallet": "workspace:*"
+    "process": "^0.11.10"
   },
   "devDependencies": {
     "typescript": "^5",

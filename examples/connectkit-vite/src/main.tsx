@@ -2,7 +2,7 @@ import { FC, PropsWithChildren, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import { WagmiProvider, createConfig, http } from "wagmi";
-import { mainnet } from "wagmi/chains";
+import { seiTestnet } from "wagmi/chains";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   ConnectKitButton,
@@ -10,18 +10,15 @@ import {
   getDefaultConfig,
 } from "connectkit";
 
-import "dynamic-global-wallet/eip6963";
-import "dynamic-global-wallet/solana-standard";
+// import "@sei-js/sei-account/eip6963";
 
 const config = createConfig(
   getDefaultConfig({
     // Your dApps chains
-    chains: [mainnet],
+    chains: [seiTestnet],
     transports: {
       // RPC URL for each chain
-      [mainnet.id]: http(
-        `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_ID}`
-      ),
+      [seiTestnet.id]: http(),
     },
 
     // Required API Keys

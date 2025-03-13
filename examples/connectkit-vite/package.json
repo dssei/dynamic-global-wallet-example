@@ -15,8 +15,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "viem": "2.x",
-    "wagmi": "^2.14.9",
-    "dynamic-global-wallet": "workspace:*"
+    "wagmi": "^2.14.9"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

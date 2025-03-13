@@ -4,8 +4,7 @@ import "./index.css";
 import App from "./App.tsx";
 import { PrivyProvider } from "@privy-io/react-auth";
 
-import "dynamic-global-wallet/eip6963";
-import "dynamic-global-wallet/solana-standard";
+import "@sei-js/sei-account/eip6963";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

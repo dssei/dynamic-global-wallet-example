@@ -5,15 +5,14 @@ import {
 } from "@dynamic-labs/sdk-react-core";
 import { SolanaWalletConnectors } from "@dynamic-labs/solana";
 
-import "dynamic-global-wallet/eip6963";
-import "dynamic-global-wallet/solana-standard";
+// import '@sei-js/sei-account/eip6963';
 
 function App() {
   return (
     <DynamicContextProvider
       theme="auto"
       settings={{
-        environmentId: "2762a57b-faa4-41ce-9f16-abff9300e2c9",
+        environmentId: "c45837f2-68a5-4e36-9183-f2de1bf73547",
         walletConnectors: [EthereumWalletConnectors, SolanaWalletConnectors],
       }}
     >
