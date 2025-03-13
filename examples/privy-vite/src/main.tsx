@@ -4,7 +4,7 @@ import "./index.css";
 import App from "./App.tsx";
 import { PrivyProvider } from "@privy-io/react-auth";
 
-import "@sei-js/sei-account/eip6963";
+// import "@sei-js/sei-account/eip6963";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
