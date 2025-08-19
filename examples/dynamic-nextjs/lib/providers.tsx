@@ -9,7 +9,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
     <DynamicContextProvider
       theme="auto"
       settings={{
-        environmentId: "c45837f2-68a5-4e36-9183-f2de1bf73547",
+        environmentId: "f981dab3-486c-4fd9-8e35-0a3cc32f263d",
         walletConnectors: [EthereumWalletConnectors, SolanaWalletConnectors],
       }}
     >

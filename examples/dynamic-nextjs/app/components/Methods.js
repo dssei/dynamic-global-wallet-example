@@ -3,8 +3,13 @@ import { useState, useEffect } from 'react';
 import { useDynamicContext, useIsLoggedIn, useUserWallets } from "@dynamic-labs/sdk-react-core";
 import { isEthereumWallet } from '@dynamic-labs/ethereum'
 import { isSolanaWallet } from '@dynamic-labs/solana'
+import { encodeFunctionData } from 'viem';
+import { createClient } from "@dynamic-labs/client";
+import { ZeroDevExtension } from "@dynamic-labs/zerodev-extension";
+import { ViemExtension } from "@dynamic-labs/viem-extension";
 
 import './Methods.css';
+import {PaymasterTypeEnum} from "@dynamic-labs/ethereum-aa";
 
 export default function DynamicMethods({ isDarkMode }) {
   const isLoggedIn = useIsLoggedIn();
@@ -12,8 +17,35 @@ export default function DynamicMethods({ isDarkMode }) {
   const userWallets = useUserWallets();
   const [isLoading, setIsLoading] = useState(true);
   const [result, setResult] = useState('');
+  const environmentId = "785a2522-a48f-4a6a-adcd-0260af2edb29"
+  const client = createClient({
+        environmentId,
+    })
+        .extend(ViemExtension())
+        .extend(ZeroDevExtension());
 
-  
+    const getKernelClient = () => {
+
+        if (!primaryWallet) {
+            throw new Error("No primary wallet");
+        }
+
+        try {
+            const kernelClient = client.zeroDev.createKernelClient({
+                wallet: primaryWallet,
+                paymaster: PaymasterTypeEnum.SPONSOR,
+                paymasterRpc: 'https://rpc.zerodev.app/api/v2/paymaster/e4f5bff6-c521-4b69-adce-7102b6b240d2?selfFunded=true',
+            });
+
+            return kernelClient;
+        } catch (error) {
+            console.error("Failed to create kernel client:", error);
+            throw new Error(
+                `Failed to create kernel client: ${error instanceof Error ? error.message : "Unknown error"}`
+            );
+        }
+    };
+
   const safeStringify = (obj) => {
     const seen = new WeakSet();
     return JSON.stringify(obj, (key, value) => {
@@ -92,6 +124,144 @@ export default function DynamicMethods({ isDarkMode }) {
     }
 
 
+    async function interactWithCounter() {
+        try {
+            if (!primaryWallet || !isEthereumWallet(primaryWallet)) {
+                setResult('Please connect an Ethereum wallet first');
+                return;
+            }
+
+            // Check if this is a smart wallet (AA-enabled)
+            setResult('Creating ZeroDev kernel client for AA transaction...');
+
+            const contractAddress = '0x5bed1d02dc4c1696b1167e78254686d54bcb8a5a';
+            const contractABI = [
+                {
+                    inputs: [],
+                    name: 'increment',
+                    outputs: [],
+                    stateMutability: 'nonpayable',
+                    type: 'function',
+                },
+                {
+                    inputs: [],
+                    name: 'getCount',
+                    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+                    stateMutability: 'view',
+                    type: 'function',
+                },
+            ];
+
+            const publicClient = await primaryWallet.getPublicClient();
+
+            // First, read the current count
+            const currentCount = await publicClient.readContract({
+                address: contractAddress,
+                abi: contractABI,
+                functionName: 'getCount',
+            });
+
+            setResult(`Current count: ${currentCount}\nSetting up ZeroDev Account Abstraction with extensive logging...`);
+
+            try {
+                console.log('🔧 Step 1: Importing ZeroDev SDK and viem dependencies...');
+
+                // Try to import the required functions and constants
+
+                const kernelClient = getKernelClient()
+
+                setResult(`Current count: ${currentCount}\nZeroDev setup complete! Sending AA transaction...`);
+
+                console.log('🔧 Step 8: Preparing user operation...');
+                const callData = encodeFunctionData({
+                    abi: contractABI,
+                    functionName: 'increment',
+                    args: [],
+                });
+                console.log('Call data:', callData);
+
+                const userOpCalls = [{
+                    to: contractAddress,
+                    value: BigInt(0),
+                    data: callData,
+                }];
+                console.log('User operation calls:', userOpCalls);
+                console.log('✅ Step 8: User operation prepared');
+
+                console.log('🚀 Step 9: Sending user operation...');
+                const userOpHash = await kernelClient.sendUserOperation({
+                    userOperation: {
+                        callData: await kernelAccount.encodeCalls(userOpCalls),
+                    },
+                });
+
+                console.log('🚀 User operation sent!');
+                console.log('User operation hash:', userOpHash);
+
+                setResult(`AA Transaction sent!\nUser Operation Hash: ${userOpHash}\nWaiting for confirmation...`);
+
+                console.log('⏳ Step 10: Waiting for user operation receipt...');
+                // Wait for the user operation to be mined
+                await new Promise(resolve => setTimeout(resolve, 5000));
+
+                console.log('📖 Step 11: Reading new count...');
+                const newCount = await publicClient.readContract({
+                    address: contractAddress,
+                    abi: contractABI,
+                    functionName: 'getCount',
+                });
+                console.log('New count:', newCount);
+
+                setResult(
+                    `✅ Counter incremented successfully with ZeroDev Account Abstraction!\n\n` +
+                    `Previous count: ${currentCount}\n` +
+                    `New count: ${newCount}\n\n` +
+                    `User Operation Hash: ${userOpHash}\n` +
+                    `🎉 Transaction was sponsored (gas-free)!\n` +
+                    `🔗 Using ZeroDev v5 with ERC-4337\n` +
+                    `⛽ Paymaster: Gas sponsored\n` +
+                    `🏗️ Kernel Account: ${kernelAccount.address}`
+                );
+
+            } catch (aaError) {
+                console.error('❌ ZeroDev AA Error:', aaError);
+                console.error('Error stack:', aaError.stack);
+
+                // Fallback to regular transaction
+                console.log('🔄 Falling back to regular transaction...');
+
+                const walletClient = await primaryWallet.getWalletClient();
+                const hash = await walletClient.writeContract({
+                    address: contractAddress,
+                    abi: contractABI,
+                    functionName: 'increment',
+                });
+
+                const receipt = await publicClient.waitForTransactionReceipt({ hash });
+                const newCount = await publicClient.readContract({
+                    address: contractAddress,
+                    abi: contractABI,
+                    functionName: 'getCount',
+                });
+
+                setResult(
+                    `⚠️ ZeroDev AA failed, used regular transaction instead\n\n` +
+                    `AA Error: ${aaError.message}\n\n` +
+                    `Previous count: ${currentCount}\n` +
+                    `New count: ${newCount}\n\n` +
+                    `Transaction hash: ${hash}\n` +
+                    `Block: ${receipt.blockNumber}\n` +
+                    `Gas used: ${receipt.gasUsed}`
+                );
+            }
+
+        } catch (error) {
+            console.error('AA Counter interaction error:', error);
+            setResult(`Error: ${error.message}\n\nNote: Make sure you have a smart wallet (AA-enabled) and @zerodev/sdk is installed.`);
+        }
+    }
+
+
 
    return (
     <>
@@ -101,12 +271,12 @@ export default function DynamicMethods({ isDarkMode }) {
             <button className="btn btn-primary" onClick={showUser}>Fetch User</button>
             <button className="btn btn-primary" onClick={showUserWallets}>Fetch User Wallets</button>
 
-            
+
     {primaryWallet && isEthereumWallet(primaryWallet) &&
       <>
         <button className="btn btn-primary" onClick={fetchPublicClient}>Fetch Public Client</button>
         <button className="btn btn-primary" onClick={fetchWalletClient}>Fetch Wallet Client</button>
-        <button className="btn btn-primary" onClick={signEthereumMessage}>Sign "Hello World" on Ethereum</button>    
+        <button className="btn btn-primary" onClick={signEthereumMessage}>Sign "Hello World" on Ethereum</button>
       </>
     }
 
@@ -115,9 +285,15 @@ export default function DynamicMethods({ isDarkMode }) {
       <>
         <button className="btn btn-primary" onClick={fetchConnection}>Fetch Connection</button>
         <button className="btn btn-primary" onClick={fetchSigner}>Fetch Signer</button>
-          <button className="btn btn-primary" onClick={signSolanaMessage}>Sign "Hello World" on Solana</button>    
+          <button className="btn btn-primary" onClick={signSolanaMessage}>Sign "Hello World" on Solana</button>
       </>
   }
+
+    {primaryWallet && isEthereumWallet(primaryWallet) &&
+      <>
+        <button className="btn btn-primary" onClick={interactWithCounter}>Increment Counter Contract</button>
+      </>
+    }
 
         </div>
           {result && (
