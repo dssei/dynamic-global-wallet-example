@@ -5,7 +5,8 @@ import {
 } from "@dynamic-labs/sdk-react-core";
 import { SolanaWalletConnectors } from "@dynamic-labs/solana";
 
-// import '@sei-js/sei-account/eip6963';
+import "dynamic-global-wallet/ethereum";
+import "dynamic-global-wallet/solana";
 
 function App() {
   return (

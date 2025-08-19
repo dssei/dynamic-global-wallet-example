@@ -12,7 +12,8 @@ import { WagmiProvider } from "wagmi";
 import { seiTestnet, polygon, optimism, arbitrum, base } from "wagmi/chains";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
 
-// import "@sei-js/sei-account/eip6963";
+import "dynamic-global-wallet/ethereum";
+import "dynamic-global-wallet/solana";
 
 const queryClient = new QueryClient();
 
