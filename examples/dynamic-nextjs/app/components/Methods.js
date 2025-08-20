@@ -4,9 +4,7 @@ import { useDynamicContext, useIsLoggedIn, useUserWallets } from "@dynamic-labs/
 import { isEthereumWallet } from '@dynamic-labs/ethereum'
 import { isSolanaWallet } from '@dynamic-labs/solana'
 import { encodeFunctionData } from 'viem';
-import { createClient } from "@dynamic-labs/client";
-import { ZeroDevExtension } from "@dynamic-labs/zerodev-extension";
-import { ViemExtension } from "@dynamic-labs/viem-extension";
+import { createKernelClient } from "@sei-js/sei-global-wallet/zerodev";
 
 import './Methods.css';
 import {PaymasterTypeEnum} from "@dynamic-labs/ethereum-aa";
@@ -17,34 +15,6 @@ export default function DynamicMethods({ isDarkMode }) {
   const userWallets = useUserWallets();
   const [isLoading, setIsLoading] = useState(true);
   const [result, setResult] = useState('');
-  const environmentId = "785a2522-a48f-4a6a-adcd-0260af2edb29"
-  const client = createClient({
-        environmentId,
-    })
-        .extend(ViemExtension())
-        .extend(ZeroDevExtension());
-
-    const getKernelClient = () => {
-
-        if (!primaryWallet) {
-            throw new Error("No primary wallet");
-        }
-
-        try {
-            const kernelClient = client.zeroDev.createKernelClient({
-                wallet: primaryWallet,
-                paymaster: PaymasterTypeEnum.SPONSOR,
-                paymasterRpc: 'https://rpc.zerodev.app/api/v2/paymaster/e4f5bff6-c521-4b69-adce-7102b6b240d2?selfFunded=true',
-            });
-
-            return kernelClient;
-        } catch (error) {
-            console.error("Failed to create kernel client:", error);
-            throw new Error(
-                `Failed to create kernel client: ${error instanceof Error ? error.message : "Unknown error"}`
-            );
-        }
-    };
 
   const safeStringify = (obj) => {
     const seen = new WeakSet();
@@ -132,6 +102,12 @@ export default function DynamicMethods({ isDarkMode }) {
             }
 
             // Check if this is a smart wallet (AA-enabled)
+            console.log('Primary wallet:', primaryWallet);
+            console.log('Wallet keys:', Object.keys(primaryWallet));
+            console.log('Wallet connector:', primaryWallet.connector);
+            console.log('Wallet connector name:', primaryWallet.connector?.name);
+            console.log('Has __client:', '__client' in primaryWallet);
+
             setResult('Creating ZeroDev kernel client for AA transaction...');
 
             const contractAddress = '0x5bed1d02dc4c1696b1167e78254686d54bcb8a5a';
@@ -167,12 +143,18 @@ export default function DynamicMethods({ isDarkMode }) {
                 console.log('🔧 Step 1: Importing ZeroDev SDK and viem dependencies...');
 
                 // Try to import the required functions and constants
+                console.log(primaryWallet)
 
-                const kernelClient = getKernelClient()
+                const kernelClient = createKernelClient({
+                    wallet: primaryWallet,
+                    paymaster: PaymasterTypeEnum.SPONSOR,
+                    paymasterRpc: 'https://rpc.zerodev.app/api/v2/paymaster/e4f5bff6-c521-4b69-adce-7102b6b240d2',
+                });
+                const { account } = kernelClient;
 
                 setResult(`Current count: ${currentCount}\nZeroDev setup complete! Sending AA transaction...`);
 
-                console.log('🔧 Step 8: Preparing user operation...');
+                console.log('🔧 Step 2: Preparing user operation...');
                 const callData = encodeFunctionData({
                     abi: contractABI,
                     functionName: 'increment',
@@ -186,25 +168,35 @@ export default function DynamicMethods({ isDarkMode }) {
                     data: callData,
                 }];
                 console.log('User operation calls:', userOpCalls);
-                console.log('✅ Step 8: User operation prepared');
+                console.log('✅ Step 3: User operation prepared');
 
-                console.log('🚀 Step 9: Sending user operation...');
-                const userOpHash = await kernelClient.sendUserOperation({
-                    userOperation: {
-                        callData: await kernelAccount.encodeCalls(userOpCalls),
-                    },
-                });
 
+                console.log('🚀 Step 4: Sending user operation...');
+
+                const hash = await kernelClient.sendUserOperation({
+                    account,
+                    callData: await account.encodeCalls([
+                        {
+                            data: encodeFunctionData({
+                                abi: contractABI,
+                                args: [],
+                                functionName: 'increment',
+                            }),
+                            to: contractAddress,
+                            value: BigInt(0),
+                        }
+                    ]),
+                })
                 console.log('🚀 User operation sent!');
-                console.log('User operation hash:', userOpHash);
+                console.log('User operation hash:', hash);
 
-                setResult(`AA Transaction sent!\nUser Operation Hash: ${userOpHash}\nWaiting for confirmation...`);
+                setResult(`AA Transaction sent!\nUser Operation Hash: ${hash}\nWaiting for confirmation...`);
 
-                console.log('⏳ Step 10: Waiting for user operation receipt...');
+                console.log('⏳ Step 5: Waiting for user operation receipt...');
                 // Wait for the user operation to be mined
                 await new Promise(resolve => setTimeout(resolve, 5000));
 
-                console.log('📖 Step 11: Reading new count...');
+                console.log('📖 Step 6: Reading new count...');
                 const newCount = await publicClient.readContract({
                     address: contractAddress,
                     abi: contractABI,
