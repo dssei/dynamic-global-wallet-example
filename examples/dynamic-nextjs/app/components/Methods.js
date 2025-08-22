@@ -5,6 +5,7 @@ import { isEthereumWallet } from '@dynamic-labs/ethereum'
 import { isSolanaWallet } from '@dynamic-labs/solana'
 import { encodeFunctionData } from 'viem';
 import { createKernelClient } from "@sei-js/sei-global-wallet/zerodev";
+import gw from '@sei-js/sei-global-wallet'
 
 import './Methods.css';
 import {PaymasterTypeEnum} from "@dynamic-labs/ethereum-aa";
@@ -96,17 +97,6 @@ export default function DynamicMethods({ isDarkMode }) {
 
     async function interactWithCounter() {
         try {
-            if (!primaryWallet || !isEthereumWallet(primaryWallet)) {
-                setResult('Please connect an Ethereum wallet first');
-                return;
-            }
-
-            // Check if this is a smart wallet (AA-enabled)
-            console.log('Primary wallet:', primaryWallet);
-            console.log('Wallet keys:', Object.keys(primaryWallet));
-            console.log('Wallet connector:', primaryWallet.connector);
-            console.log('Wallet connector name:', primaryWallet.connector?.name);
-            console.log('Has __client:', '__client' in primaryWallet);
 
             setResult('Creating ZeroDev kernel client for AA transaction...');
 
@@ -143,49 +133,36 @@ export default function DynamicMethods({ isDarkMode }) {
                 console.log('🔧 Step 1: Importing ZeroDev SDK and viem dependencies...');
 
                 // Try to import the required functions and constants
-                console.log(primaryWallet)
 
-                const kernelClient = createKernelClient({
-                    wallet: primaryWallet,
+                const smartWallet = gw.wallets[0]
+
+                // Check if this is a smart wallet (AA-enabled)
+                console.log('Smart wallet:', smartWallet);
+                console.log('Wallet keys:', Object.keys(smartWallet));
+
+                const kernelClient = await createKernelClient({
+                    wallet: smartWallet,
                     paymaster: PaymasterTypeEnum.SPONSOR,
-                    paymasterRpc: 'https://rpc.zerodev.app/api/v2/paymaster/e4f5bff6-c521-4b69-adce-7102b6b240d2',
+                    paymasterRpc: 'https://rpc.zerodev.app/api/v2/paymaster/e4f5bff6-c521-4b69-adce-7102b6b240d2?selfFunded=true',
                 });
                 const { account } = kernelClient;
 
+                console.log('Kernel client', kernelClient)
+                console.log('Account:', account);
+
                 setResult(`Current count: ${currentCount}\nZeroDev setup complete! Sending AA transaction...`);
 
-                console.log('🔧 Step 2: Preparing user operation...');
-                const callData = encodeFunctionData({
-                    abi: contractABI,
-                    functionName: 'increment',
-                    args: [],
-                });
-                console.log('Call data:', callData);
-
-                const userOpCalls = [{
-                    to: contractAddress,
-                    value: BigInt(0),
-                    data: callData,
-                }];
-                console.log('User operation calls:', userOpCalls);
                 console.log('✅ Step 3: User operation prepared');
-
 
                 console.log('🚀 Step 4: Sending user operation...');
 
+
                 const hash = await kernelClient.sendUserOperation({
-                    account,
-                    callData: await account.encodeCalls([
-                        {
-                            data: encodeFunctionData({
-                                abi: contractABI,
-                                args: [],
-                                functionName: 'increment',
-                            }),
-                            to: contractAddress,
-                            value: BigInt(0),
-                        }
-                    ]),
+                    callData: await kernelClient.account.encodeCalls([{
+                        to: primaryWallet.address,
+                        value: BigInt(0),
+                        data: "0x", // Empty data for simple ETH transfer
+                    }])
                 })
                 console.log('🚀 User operation sent!');
                 console.log('User operation hash:', hash);
@@ -208,11 +185,9 @@ export default function DynamicMethods({ isDarkMode }) {
                     `✅ Counter incremented successfully with ZeroDev Account Abstraction!\n\n` +
                     `Previous count: ${currentCount}\n` +
                     `New count: ${newCount}\n\n` +
-                    `User Operation Hash: ${userOpHash}\n` +
                     `🎉 Transaction was sponsored (gas-free)!\n` +
                     `🔗 Using ZeroDev v5 with ERC-4337\n` +
-                    `⛽ Paymaster: Gas sponsored\n` +
-                    `🏗️ Kernel Account: ${kernelAccount.address}`
+                    `⛽ Paymaster: Gas sponsored\n`
                 );
 
             } catch (aaError) {
